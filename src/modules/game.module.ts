@@ -7,7 +7,7 @@ import { GameController } from '@/controllers/game.controller';
 import { User } from '@/entity/user.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Game, GameSession, User])],
+  imports: [TypeOrmModule.forFeature([Game])],
   controllers: [GameController],
   providers: [GameService],
 })

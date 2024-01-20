@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import OrmConfig from '../configs/ormconfig.json';
 import { UserModule } from './modules/user.module';
 import { GameModule } from './modules/game.module';
+import { SessionModule } from './modules/session.module';
 
 // console.log('OrmConfig: ', OrmConfig);
 
@@ -23,6 +24,7 @@ import { GameModule } from './modules/game.module';
     }),
     UserModule,
     GameModule,
+    SessionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
