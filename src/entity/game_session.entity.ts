@@ -2,6 +2,8 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
   ManyToOne,
   OneToMany,
   OneToOne,
@@ -17,17 +19,14 @@ export const SESSION_STATUS = {
 } as const;
 type SESSION_STATUS = (typeof SESSION_STATUS)[keyof typeof SESSION_STATUS];
 
-@Entity('sessions')
-export class Session {
-  constructor(partial?: Partial<Session>) {
+@Entity('game_sessions')
+export class GameSession {
+  constructor(partial?: Partial<GameSession>) {
     Object.assign(this, partial);
   }
 
   @PrimaryGeneratedColumn()
   id: number;
-
-  @OneToOne(() => Game)
-  game: Game;
 
   @Column({ unique: true })
   code: string;
@@ -38,18 +37,22 @@ export class Session {
   @Column()
   status: number = 0;
 
-  @OneToOne(() => User)
-  creator: User;
-
-  @OneToMany(() => User, (user) => user.uid)
-  participants: User[];
-
   @CreateDateColumn()
   createdAt: Date;
 
   @Column({ nullable: true })
   startedAt?: Date;
 
-  @Column()
-  endedAt: Date;
+  @Column({ nullable: true })
+  endedAt?: Date;
+
+  @ManyToOne(() => User)
+  creator: User;
+
+  @ManyToMany(() => User, (user) => user.joinedSessions, { cascade: true })
+  @JoinTable()
+  participants: User[];
+
+  @ManyToOne(() => Game, (game) => game.sessions)
+  game: Game;
 }

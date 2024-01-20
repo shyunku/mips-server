@@ -2,9 +2,14 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
+  ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { GameSession } from './game_session.entity';
 
 @Entity('users')
 export class User {
@@ -28,4 +33,10 @@ export class User {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @ManyToMany(() => GameSession, (user) => user.participants)
+  joinedSessions: GameSession[];
+
+  @OneToMany(() => GameSession, (session) => session.creator)
+  createdSessions: GameSession[];
 }

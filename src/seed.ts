@@ -32,6 +32,12 @@ async function seed() {
     });
     if (!gameEntity) {
       await gameRepository.save(game);
+    } else {
+      // update
+      gameEntity.description = game.description;
+      gameEntity.minMembers = game.minMembers;
+      gameEntity.maxMembers = game.maxMembers;
+      await gameRepository.save(gameEntity);
     }
   }
 

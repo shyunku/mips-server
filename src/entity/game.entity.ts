@@ -1,4 +1,5 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
+import { GameSession } from './game_session.entity';
 
 @Entity('games')
 export class Game {
@@ -20,4 +21,7 @@ export class Game {
 
   @Column()
   maxMembers: number;
+
+  @OneToMany(() => GameSession, (session) => session.game)
+  sessions: GameSession[];
 }
