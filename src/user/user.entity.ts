@@ -9,7 +9,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { GameSession } from './game_session.entity';
+import { GameSession } from '../session/session.entity';
 
 @Entity('users')
 export class User {

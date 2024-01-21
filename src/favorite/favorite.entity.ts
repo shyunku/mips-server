@@ -10,8 +10,8 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
-import { Game } from './game.entity';
-import { User } from './user.entity';
+import { Game } from '@/game/game.entity';
+import { User } from '@/user/user.entity';
 
 @Entity('favorites')
 export class Favorite {

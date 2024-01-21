@@ -9,8 +9,8 @@ import {
   OneToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Game } from './game.entity';
-import { User } from './user.entity';
+import { Game } from '@/game/game.entity';
+import { User } from '@/user/user.entity';
 
 export const SESSION_STATUS = {
   WAITING: 0,
@@ -46,10 +46,14 @@ export class GameSession {
   @Column({ nullable: true })
   endedAt?: Date;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, (user) => user.createdSessions, {
+    onDelete: 'CASCADE',
+  })
   creator: User;
 
-  @ManyToMany(() => User, (user) => user.joinedSessions, { cascade: true })
+  @ManyToMany(() => User, (user) => user.joinedSessions, {
+    onDelete: 'CASCADE',
+  })
   @JoinTable()
   participants: User[];
 

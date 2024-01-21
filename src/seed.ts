@@ -1,7 +1,7 @@
 import { DataSource } from 'typeorm';
 
 import OrmConfig from '../configs/ormconfig.json';
-import { Game } from './entity/game.entity';
+import { Game } from './game/game.entity';
 
 const initialGames: Game[] = [
   new Game({

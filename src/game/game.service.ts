@@ -1,6 +1,6 @@
-import { Game } from '@/entity/game.entity';
-import { SESSION_STATUS, GameSession } from '@/entity/game_session.entity';
-import { User } from '@/entity/user.entity';
+import { Game } from '@/game/game.entity';
+import { SESSION_STATUS, GameSession } from '@/session/session.entity';
+import { User } from '@/user/user.entity';
 import { generateNumCode } from '@/utils/common.util';
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
