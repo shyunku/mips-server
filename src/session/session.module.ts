@@ -6,9 +6,14 @@ import { User } from '@/user/user.entity';
 import { SessionService } from '@/session/session.service';
 import { SessionController } from '@/session/session.controller';
 import { SocketModule } from '@/socket/socket.module';
+import { StationModule } from '@/playstation/station.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Game, GameSession, User]), SocketModule],
+  imports: [
+    TypeOrmModule.forFeature([Game, GameSession, User]),
+    SocketModule,
+    StationModule,
+  ],
   controllers: [SessionController],
   providers: [SessionService],
   exports: [SessionService],

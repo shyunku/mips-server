@@ -15,7 +15,8 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthService } from '@/auth/auth.service';
 import { SocketService } from './socket.service';
 import { SessionService } from '@/session/session.service';
-import { sessionRoom } from './socket.dto';
+import { SOCKET_TOPICS, sessionRoom } from './socket.dto';
+import { StationRouterService } from '@/playstation/station-router.service';
 
 @WebSocketGateway(8101, {
   cors: { origin: ['*'] },
@@ -32,6 +33,7 @@ export class SocketGateway
     @Inject(forwardRef(() => SessionService))
     private readonly sessionService: SessionService,
     private readonly socketService: SocketService,
+    private readonly stationRouterService: StationRouterService,
   ) {}
 
   afterInit(server: Server) {
@@ -66,8 +68,34 @@ export class SocketGateway
 
   @SubscribeMessage('message')
   handleMessage(client: UserSocket, payload: any): string {
-    console.log(payload);
     client.emit('message', payload);
     return 'Hello world!';
+  }
+
+  @SubscribeMessage(SOCKET_TOPICS.SESSION_INGAME)
+  async handleSessionIngame(
+    client: UserSocket,
+    raw: [sessionId: number, topic: string, payload: any],
+  ): Promise<void> {
+    try {
+      const [sessionId, topic, payload] = raw;
+      this.logger.debug(
+        `Client (${client.user.uid}) ${client.user.nickname} -> ${sessionId}: ${topic}`,
+      );
+      const session = await this.sessionService.getSession(sessionId);
+      if (!session) return;
+      const uid = client.user.uid;
+      if (!uid) return;
+      if (session.game.gid == null) return;
+
+      const gameService = this.stationRouterService.getService(
+        session.game.gid,
+      );
+      if (gameService == null) return;
+      const isCreator = session.creator.uid === uid;
+      gameService.routeMessage(sessionId, uid, isCreator, topic, payload);
+    } catch (e) {
+      this.logger.error(e);
+    }
   }
 }

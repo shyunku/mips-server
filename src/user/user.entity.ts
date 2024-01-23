@@ -34,7 +34,9 @@ export class User {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @ManyToMany(() => GameSession, (user) => user.participants)
+  @ManyToMany(() => GameSession, (user) => user.participants, {
+    onDelete: 'CASCADE',
+  })
   joinedSessions: GameSession[];
 
   @OneToMany(() => GameSession, (session) => session.creator)

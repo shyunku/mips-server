@@ -46,16 +46,18 @@ export class GameSession {
   @Column({ nullable: true })
   endedAt?: Date;
 
-  @ManyToOne(() => User, (user) => user.createdSessions, {
-    onDelete: 'CASCADE',
-  })
-  creator: User;
-
   @ManyToMany(() => User, (user) => user.joinedSessions, {
     onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
   })
   @JoinTable()
   participants: User[];
+
+  @ManyToOne(() => User, (user) => user.createdSessions, {
+    onDelete: 'CASCADE',
+    onUpdate: 'CASCADE',
+  })
+  creator: User;
 
   @ManyToOne(() => Game, (game) => game.sessions)
   game: Game;

@@ -25,6 +25,16 @@ export class SocketService {
     return this.userMap.get(uid);
   }
 
+  // TODO :: optimize as map
+  getUserBySocketId(socketId: string): UserSocket {
+    for (const user of this.userMap.values()) {
+      if (user.id === socketId) {
+        return user;
+      }
+    }
+    return null;
+  }
+
   removeUser(uid: number) {
     this.userMap.delete(uid);
   }
@@ -53,14 +63,6 @@ export class SocketService {
     );
   }
 
-  public joinSession(uid: number, sessionId: number) {
-    const client = this.getUser(uid);
-    if (!client) {
-      return;
-    }
-    this.joinRoom(client, sessionRoom(sessionId));
-  }
-
   public broadcast(topic: string, payload: any) {
     this.io.emit(topic, payload);
   }
@@ -80,7 +82,44 @@ export class SocketService {
   }
 
   /* ---------------------- Session ---------------------- */
-  public broadcastToSession(sessionId: number, topic: string, payload: any) {
+  public joinSession(uid: number, sessionId: number) {
+    const client = this.getUser(uid);
+    if (!client) {
+      return;
+    }
+    this.joinRoom(client, sessionRoom(sessionId));
+  }
+
+  public leaveSession(uid: number, sessionId: number) {
+    const client = this.getUser(uid);
+    if (!client) {
+      return;
+    }
+    this.leaveRoom(client, sessionRoom(sessionId));
+  }
+
+  public getSessionClients(sessionId: number): UserSocket[] {
+    const room = sessionRoom(sessionId);
+    const roomSocketSet: Set<string> = this.io.sockets.adapter.rooms.get(room);
+    if (!roomSocketSet) {
+      return [];
+    }
+    const clients: UserSocket[] = [];
+    for (const clientId of roomSocketSet) {
+      const userSocket = this.getUserBySocketId(clientId);
+      if (!userSocket) {
+        continue;
+      }
+      clients.push(userSocket);
+    }
+    return clients;
+  }
+
+  public broadcastToSession(
+    sessionId: number,
+    topic: string,
+    payload: any = null,
+  ) {
     this.logger.debug(`Broadcasting --> session ${sessionId} -- ${topic}`);
     this.io.to(sessionRoom(sessionId)).emit(topic, payload);
   }
@@ -89,7 +128,7 @@ export class SocketService {
     uid: number,
     sessionId: number,
     topic: string,
-    payload: any,
+    payload: any = null,
   ) {
     this.logger.debug(`Multicasting --> session ${sessionId} -- ${topic}`);
     this.io

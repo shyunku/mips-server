@@ -9,6 +9,7 @@ import { DataSource, Not, Repository } from 'typeorm';
 import { SocketService } from '@/socket/socket.service';
 import { SOCKET_TOPICS, JoinSessionResult } from '@/socket/socket.dto';
 import { SessionCreateDto } from './session.dto';
+import { StationRouterService } from '@/playstation/station-router.service';
 
 @Injectable()
 export class SessionService {
@@ -23,6 +24,7 @@ export class SessionService {
     private readonly userRepository: Repository<User>,
     private socketService: SocketService,
     private readonly dataSource: DataSource,
+    private stationRouterService: StationRouterService,
   ) {}
 
   // TODO :: delete expired sessions (24 hours later of created but not started)
@@ -111,7 +113,12 @@ export class SessionService {
           HttpStatus.BAD_REQUEST,
         );
       }
-
+      if (session.status !== SESSION_STATUS.WAITING) {
+        throw new HttpException(
+          `session is not waiting`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
       session.participants = [...session.participants, user];
       if (session.participants.length > session.game.maxMembers) {
         session.status = SESSION_STATUS.PLAYING;
@@ -133,6 +140,70 @@ export class SessionService {
       }
 
       return result;
+    } catch (err) {
+      await tx.rollbackTransaction();
+      throw err;
+    } finally {
+      await tx.release();
+    }
+  }
+
+  async leaveSession(sessionId: number, uid: number): Promise<null> {
+    const tx = this.dataSource.createQueryRunner();
+    await tx.connect();
+    await tx.startTransaction();
+
+    try {
+      const user = await tx.manager.findOne(User, { where: { uid } });
+      if (!user) {
+        throw new HttpException(
+          `can't find user with id ${uid}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const session = await tx.manager.findOne(GameSession, {
+        where: { id: sessionId },
+        relations: ['participants', 'game', 'creator'],
+      });
+      if (!session) {
+        throw new HttpException(
+          `can't find session with id ${sessionId}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (session.status !== SESSION_STATUS.WAITING) {
+        throw new HttpException(
+          `session is not waiting`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (session.creator.uid === uid) {
+        throw new HttpException(
+          `creator can't leave session, delete session instead`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      session.participants = session.participants.filter((p) => p.uid !== uid);
+      if (session.participants.length === 0) {
+        await tx.manager.delete(GameSession, { id: sessionId });
+      } else {
+        await tx.manager.save(session);
+      }
+      await tx.commitTransaction();
+
+      try {
+        this.socketService.leaveSession(uid, session.id);
+        this.socketService.multicastToSession(
+          uid,
+          session.id,
+          SOCKET_TOPICS.SESSION_LEAVE,
+          uid,
+        );
+      } catch (err) {
+        this.logger.error(err);
+      }
+
+      return null;
     } catch (err) {
       await tx.rollbackTransaction();
       throw err;
@@ -182,6 +253,138 @@ export class SessionService {
         this.logger.error(err);
       }
       return SessionCreateDto.fromSession(session);
+    } catch (err) {
+      await tx.rollbackTransaction();
+      throw err;
+    } finally {
+      await tx.release();
+    }
+  }
+
+  async startSession(sessionId: number, uid: number): Promise<void> {
+    const tx = this.dataSource.createQueryRunner();
+    await tx.connect();
+    await tx.startTransaction();
+
+    try {
+      const user = await tx.manager.findOne(User, { where: { uid } });
+      if (!user) {
+        throw new HttpException(
+          `can't find user with id ${uid}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const session = await tx.manager.findOne(GameSession, {
+        where: { id: sessionId },
+        relations: ['participants', 'game', 'creator'],
+      });
+      if (!session) {
+        throw new HttpException(
+          `can't find session with id ${sessionId}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (session.status !== SESSION_STATUS.WAITING) {
+        throw new HttpException(
+          `session is not waiting`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (session.creator.uid !== uid) {
+        throw new HttpException(
+          `user ${uid} is not creator of session ${sessionId}`,
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      if (
+        session.participants.length < session.game.minMembers ||
+        session.participants.length > session.game.maxMembers
+      ) {
+        throw new HttpException(
+          `session has invalid number of participants`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      session.status = SESSION_STATUS.PLAYING;
+      session.startedAt = new Date();
+
+      await tx.manager.save(session);
+      await tx.commitTransaction();
+
+      const service = this.stationRouterService.getService(session.game.gid);
+      if (service == null) throw new Error('no service for game');
+      await service.startSession(sessionId);
+
+      try {
+        this.socketService.broadcastToSession(
+          session.id,
+          SOCKET_TOPICS.SESSION_START,
+        );
+      } catch (err) {
+        this.logger.error(err);
+      }
+    } catch (err) {
+      await tx.rollbackTransaction();
+      throw err;
+    } finally {
+      await tx.release();
+    }
+  }
+
+  async endSession(sessionId: number, uid: number): Promise<void> {
+    const tx = this.dataSource.createQueryRunner();
+    await tx.connect();
+    await tx.startTransaction();
+
+    try {
+      const user = await tx.manager.findOne(User, { where: { uid } });
+      if (!user) {
+        throw new HttpException(
+          `can't find user with id ${uid}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const session = await tx.manager.findOne(GameSession, {
+        where: { id: sessionId },
+        relations: ['participants', 'game', 'creator'],
+      });
+      if (!session) {
+        throw new HttpException(
+          `can't find session with id ${sessionId}`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (session.status !== SESSION_STATUS.PLAYING) {
+        throw new HttpException(
+          `session is not playing`,
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      if (session.creator.uid !== uid) {
+        throw new HttpException(
+          `user ${uid} is not creator of session ${sessionId}`,
+          HttpStatus.FORBIDDEN,
+        );
+      }
+      session.status = SESSION_STATUS.ENDED;
+      session.endedAt = new Date();
+
+      await tx.manager.save(session);
+      await tx.commitTransaction();
+
+      const service = this.stationRouterService.getService(session.game.gid);
+      if (service == null) throw new Error('no service for game');
+      await service.endSession(sessionId);
+
+      try {
+        this.socketService.broadcastToSession(
+          session.id,
+          SOCKET_TOPICS.SESSION_END,
+          session.id,
+        );
+      } catch (err) {
+        this.logger.error(err);
+      }
     } catch (err) {
       await tx.rollbackTransaction();
       throw err;

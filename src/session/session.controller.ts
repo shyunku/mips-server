@@ -50,6 +50,14 @@ export class SessionController {
     return await this.sessionService.joinSession(code, req.user.uid, password);
   }
 
+  @Post('leave')
+  async leaveSession(
+    @Request() req,
+    @Body('sessionId') sessionId: number,
+  ): Promise<GameSession> {
+    return await this.sessionService.leaveSession(sessionId, req.user.uid);
+  }
+
   @Post('create')
   async createSession(
     @Request() req,
@@ -61,6 +69,22 @@ export class SessionController {
       req.user.uid,
       password,
     );
+  }
+
+  @Post('start')
+  async startSession(
+    @Request() req,
+    @Body('sessionId') sessionId: number,
+  ): Promise<void> {
+    await this.sessionService.startSession(sessionId, req.user.uid);
+  }
+
+  @Post('end')
+  async endSession(
+    @Request() req,
+    @Body('sessionId') sessionId: number,
+  ): Promise<void> {
+    await this.sessionService.endSession(sessionId, req.user.uid);
   }
 
   @Delete('')
