@@ -21,11 +21,14 @@ export class Favorite {
   @PrimaryColumn()
   gameId: number;
 
-  @OneToOne(() => User)
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @ManyToOne(() => User, (user) => user.favorites)
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @OneToOne(() => Game)
+  @ManyToOne(() => Game, (game) => game.favorites)
   @JoinColumn({ name: 'gameId' })
   game: Game;
 }

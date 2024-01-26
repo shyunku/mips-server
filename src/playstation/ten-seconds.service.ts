@@ -6,6 +6,7 @@ import { SocketService } from '@/socket/socket.service';
 import { PlayStationService } from './station.interface';
 import { SessionService } from '@/session/session.service';
 import { clear } from 'console';
+import { UserService } from '@/user/user.service';
 
 export const TOPICS = {
   START_COUNTER: 'ten-seconds/start-counter',
@@ -27,6 +28,23 @@ class SessionData {
   public lastUpdatedAt: number = Date.now();
 }
 
+class CounterEndedResultDto {
+  public uid: number;
+  public nickname: string | null;
+  public stopAt: number | null;
+  public rating: number | null;
+}
+
+class CounterEndedDto {
+  public sessionId: number;
+  public results: CounterEndedResultDto[];
+
+  constructor(sessionId: number, results: CounterEndedResultDto[]) {
+    this.sessionId = sessionId;
+    this.results = results;
+  }
+}
+
 const STOP_SECONDS_THRESHOLD = 15;
 const BURST_SECONDS_THRESHOLD = 10;
 
@@ -39,6 +57,7 @@ export class TenSecondsService implements PlayStationService {
     private socketService: SocketService,
     @Inject(forwardRef(() => SessionService))
     private sessionService: SessionService,
+    private userService: UserService,
   ) {}
 
   async startSession(sessionId: number) {
@@ -131,7 +150,7 @@ export class TenSecondsService implements PlayStationService {
       const participantStatusMap = sessionData.participantStatusMap;
       for (const participantStatus of participantStatusMap.values()) {
         if (participantStatus.counterStopAt == null) {
-          participantStatus.counterStopAt = STOP_SECONDS_THRESHOLD;
+          // participantStatus.counterStopAt = STOP_SECONDS_THRESHOLD;
         }
       }
       this.handleGameEnd(sessionId);
@@ -169,7 +188,7 @@ export class TenSecondsService implements PlayStationService {
     }
   }
 
-  handleGameEnd(sessionId: number): void {
+  async handleGameEnd(sessionId: number): Promise<void> {
     this.logger.debug(`handle game end: ${sessionId}`);
     const sessionData = this.sessionDataMap.get(sessionId);
     if (!sessionData) return;
@@ -188,8 +207,29 @@ export class TenSecondsService implements PlayStationService {
         return b.counterStopAt - a.counterStopAt;
       });
 
+    const results: CounterEndedResultDto[] = [];
+    for (const participantStatus of sessionData.participantStatusMap.values()) {
+      const user = await this.userService.getUser(participantStatus.uid);
+
+      const result = new CounterEndedResultDto();
+      result.uid = participantStatus.uid;
+      result.nickname = user.nickname;
+      result.stopAt = participantStatus.counterStopAt;
+      const index = sortedParticipants.findIndex(
+        (status) => status.uid === participantStatus.uid,
+      );
+      if (index !== -1) {
+        result.rating =
+          sortedParticipants.findIndex(
+            (status) => status.uid === participantStatus.uid,
+          ) + 1;
+      }
+      results.push(result);
+    }
+
+    const resultDto = new CounterEndedDto(sessionId, results);
+
     const sockets = this.socketService.getSessionClients(sessionId);
-    // this.logger.debug(`Socket count: ${sockets.length}`);
     for (const socket of sockets) {
       const uid = socket.user.uid;
       if (!uid) {
@@ -205,10 +245,7 @@ export class TenSecondsService implements PlayStationService {
       const stopAt = status.counterStopAt;
       const isBurst = stopAt == null || stopAt > BURST_SECONDS_THRESHOLD;
 
-      socket.emit(TOPICS.COUNTER_ENDED, {
-        sessionId: sessionId,
-        rating: isBurst ? null : rating + 1,
-      });
+      socket.emit(TOPICS.COUNTER_ENDED, resultDto);
     }
   }
 

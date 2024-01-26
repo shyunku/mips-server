@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { GameSession } from '../session/session.entity';
+import { Favorite } from '@/favorite/favorite.entity';
 
 @Entity('users')
 export class User {
@@ -41,4 +42,7 @@ export class User {
 
   @OneToMany(() => GameSession, (session) => session.creator)
   createdSessions: GameSession[];
+
+  @OneToMany(() => Favorite, (favorite) => favorite.user)
+  favorites: Favorite[];
 }

@@ -12,6 +12,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AuthModule } from '@/auth/auth.module';
 import { LoggerMiddleware } from './logger.middleware';
 import { StationModule } from '@/playstation/station.module';
+import { FavoriteModule } from '@/favorite/favorite.module';
 
 // console.log('OrmConfig: ', OrmConfig);
 
@@ -36,6 +37,7 @@ import { StationModule } from '@/playstation/station.module';
     SessionModule,
     SocketModule,
     StationModule,
+    FavoriteModule,
   ],
   controllers: [AppController],
   providers: [AppService],

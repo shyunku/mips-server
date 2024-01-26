@@ -3,9 +3,14 @@ import { SocketModule } from '@/socket/socket.module';
 import { Module, forwardRef } from '@nestjs/common';
 import { TenSecondsService } from './ten-seconds.service';
 import { StationRouterService } from './station-router.service';
+import { UserModule } from '@/user/user.module';
 
 @Module({
-  imports: [forwardRef(() => SocketModule), forwardRef(() => SessionModule)],
+  imports: [
+    forwardRef(() => SocketModule),
+    forwardRef(() => SessionModule),
+    UserModule,
+  ],
   providers: [TenSecondsService, StationRouterService],
   exports: [StationRouterService],
 })

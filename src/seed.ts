@@ -6,9 +6,21 @@ import { Game } from './game/game.entity';
 const initialGames: Game[] = [
   new Game({
     name: '죽음의 10초',
-    description: '게임1 설명',
+    description: '10초를 넘기지 않고 10초에 최대한 근접하게 멈추세요!',
     minMembers: 2,
-    maxMembers: 4,
+    maxMembers: 30,
+  }),
+  new Game({
+    name: '마피아 게임',
+    description: '모두가 아는 그 게임',
+    minMembers: 4,
+    maxMembers: 12,
+  }),
+  new Game({
+    name: '공범',
+    description: '준비 중',
+    minMembers: 1,
+    maxMembers: 1,
   }),
 ];
 

@@ -1,5 +1,6 @@
 import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
 import { GameSession } from '../session/session.entity';
+import { Favorite } from '@/favorite/favorite.entity';
 
 @Entity('games')
 export class Game {
@@ -22,6 +23,12 @@ export class Game {
   @Column()
   maxMembers: number;
 
+  @Column({ default: false })
+  deployed: boolean;
+
   @OneToMany(() => GameSession, (session) => session.game)
   sessions: GameSession[];
+
+  @OneToMany(() => Favorite, (favorite) => favorite.game)
+  favorites: Favorite[];
 }
