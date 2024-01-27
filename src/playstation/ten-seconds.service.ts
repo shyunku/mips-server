@@ -3,29 +3,38 @@ import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { UserSocket } from '@/socket/socket.middleware';
 import { sessionRoom } from '@/socket/socket.dto';
 import { SocketService } from '@/socket/socket.service';
-import { PlayStationService } from './station.interface';
+import {
+  PlayStationService,
+  StationData,
+  StationMemberStatus,
+  StationTopics,
+} from './station.interface';
 import { SessionService } from '@/session/session.service';
 import { clear } from 'console';
 import { UserService } from '@/user/user.service';
 
+const GAME_NAME = 'ten-seconds';
+
 export const TOPICS = {
-  START_COUNTER: 'ten-seconds/start-counter',
-  STOP_COUNTER: 'ten-seconds/stop-counter',
-  COUNTER_ENDED: 'ten-seconds/counter-ended',
-  INITIALIZE: 'ten-seconds/initialize',
+  STOP_COUNTER: `${GAME_NAME}/stop-counter`,
+  INITIALIZE: `${GAME_NAME}/initialize`,
 };
 
-class ParticipantStatus {
+class MemberStatus extends StationMemberStatus {
   public uid: number;
   public counterStopAt: number | null;
+
+  public initialize(): void {
+    this.counterStopAt = null;
+  }
 }
 
-class SessionData {
-  public participantStatusMap = new Map<number, ParticipantStatus>();
-  public started: boolean = false;
-  public ended: boolean = false;
+class SessionData extends StationData<MemberStatus> {
   public counterThread: NodeJS.Timeout | null = null;
-  public lastUpdatedAt: number = Date.now();
+
+  public initialize(): void {
+    clearTimeout(this.counterThread);
+  }
 }
 
 class CounterEndedResultDto {
@@ -49,42 +58,15 @@ const STOP_SECONDS_THRESHOLD = 15;
 const BURST_SECONDS_THRESHOLD = 10;
 
 @Injectable()
-export class TenSecondsService implements PlayStationService {
-  private logger: Logger = new Logger('TenSecondsService');
-  private sessionDataMap = new Map<number, SessionData>();
-
-  constructor(
-    private socketService: SocketService,
-    @Inject(forwardRef(() => SessionService))
-    private sessionService: SessionService,
-    private userService: UserService,
-  ) {}
-
-  async startSession(sessionId: number) {
-    // create session initial data
-    const session = await this.sessionService.getSession(sessionId);
-    if (!session) return;
-    const sessionData = new SessionData();
-    sessionData.participantStatusMap = new Map<number, ParticipantStatus>();
-    for (const participant of session.participants) {
-      const participantStatus = new ParticipantStatus();
-      participantStatus.uid = participant.uid;
-      participantStatus.counterStopAt = null;
-      sessionData.participantStatusMap.set(participant.uid, participantStatus);
-    }
-    this.sessionDataMap.set(sessionId, sessionData);
-    this.logger.debug(`Session ${sessionId} started`);
+export class TenSecondsService extends PlayStationService<
+  SessionData,
+  MemberStatus
+> {
+  newStationMemberStatus(uid: number) {
+    return new MemberStatus(uid);
   }
-
-  endSession(sessionId: number): void {
-    this.sessionDataMap.delete(sessionId);
-    this.logger.debug(`Session ${sessionId} ended`);
-  }
-
-  refreshUpdateTime(sessionId: number): void {
-    const sessionData = this.sessionDataMap.get(sessionId);
-    if (!sessionData) return;
-    sessionData.lastUpdatedAt = Date.now();
+  newSessionData(sessionId: number) {
+    return new SessionData(sessionId);
   }
 
   routeMessage(
@@ -95,15 +77,8 @@ export class TenSecondsService implements PlayStationService {
     payload: any,
   ): void {
     switch (topic) {
-      case TOPICS.START_COUNTER:
-        if (!isCreator) return;
-        this.startCounter(sessionId, uid);
-        break;
       case TOPICS.STOP_COUNTER:
         this.stopIndividualCounter(sessionId, uid, payload);
-        break;
-      case TOPICS.INITIALIZE:
-        this.initialize(sessionId);
         break;
       default:
         this.logger.warn(`Unknown topic: ${topic}`);
@@ -111,89 +86,20 @@ export class TenSecondsService implements PlayStationService {
     }
   }
 
-  canDestroy(sessionId: number): boolean {
-    if (this.sessionDataMap.has(sessionId)) {
-      const sessionData = this.sessionDataMap.get(sessionId);
-      if (!sessionData) return true;
-      const elapsedAfterLastUpdate = Date.now() - sessionData.lastUpdatedAt;
-      const day = 24 * 60 * 60 * 1000;
-      return elapsedAfterLastUpdate > day && sessionData.ended;
-    }
-  }
-
-  startCounter(sessionId: number, uid: number): void {
-    const sessionData = this.sessionDataMap.get(sessionId);
-    if (!sessionData) {
-      this.logger.debug(`Session ${sessionId} not found`);
-      console.log(
-        sessionData,
-        sessionId,
-        this.sessionDataMap,
-        typeof sessionId,
-      );
-      return;
-    }
-    const participantStatus = sessionData.participantStatusMap.get(uid);
-    if (!participantStatus) return;
-
-    if (sessionData.started) {
-      // already started
-      this.logger.debug(`Session ${sessionId} already started`);
-      return;
-    }
-
-    sessionData.started = true;
-
+  handleRoundStart(sessionData: SessionData, uid: number): void {
     const thread = setTimeout(() => {
-      const sessionData = this.sessionDataMap.get(sessionId);
-      if (!sessionData) return;
       const participantStatusMap = sessionData.participantStatusMap;
       for (const participantStatus of participantStatusMap.values()) {
         if (participantStatus.counterStopAt == null) {
           // participantStatus.counterStopAt = STOP_SECONDS_THRESHOLD;
         }
       }
-      this.handleGameEnd(sessionId);
+      this._handleRoundEnd(sessionData.id);
     }, STOP_SECONDS_THRESHOLD * 1000);
     sessionData.counterThread = thread;
-
-    // broadcast to all
-    this.socketService.broadcastToSession(
-      sessionId,
-      TOPICS.START_COUNTER,
-      sessionId,
-    );
   }
 
-  stopIndividualCounter(
-    sessionId: number,
-    uid: number,
-    stopSeconds: number,
-  ): void {
-    const sessionData = this.sessionDataMap.get(sessionId);
-    if (!sessionData) return;
-    const participantStatus = sessionData.participantStatusMap.get(uid);
-    if (!participantStatus) return;
-    if (participantStatus.counterStopAt != null) return;
-    if (stopSeconds == null) return;
-    participantStatus.counterStopAt = stopSeconds;
-
-    const undoneParticipants = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.counterStopAt == null);
-    if (undoneParticipants.length === 0) {
-      // all participants have stopped
-      clearTimeout(sessionData.counterThread);
-      this.handleGameEnd(sessionId);
-    }
-  }
-
-  async handleGameEnd(sessionId: number): Promise<void> {
-    this.logger.debug(`handle game end: ${sessionId}`);
-    const sessionData = this.sessionDataMap.get(sessionId);
-    if (!sessionData) return;
-    sessionData.ended = true;
-
+  async handleRoundEnd(sessionData: SessionData): Promise<void> {
     // sort by counter stop time
     const sortedParticipants = Array.from(
       sessionData.participantStatusMap.values(),
@@ -227,50 +133,39 @@ export class TenSecondsService implements PlayStationService {
       results.push(result);
     }
 
-    const resultDto = new CounterEndedDto(sessionId, results);
-
-    const sockets = this.socketService.getSessionClients(sessionId);
-    for (const socket of sockets) {
-      const uid = socket.user.uid;
-      if (!uid) {
-        continue;
-      }
-      const rating = sortedParticipants.findIndex(
-        (status) => status.uid === uid,
-      );
-      const status = sessionData.participantStatusMap.get(uid);
-      if (!status) {
-        continue;
-      }
-      const stopAt = status.counterStopAt;
-      const isBurst = stopAt == null || stopAt > BURST_SECONDS_THRESHOLD;
-
-      socket.emit(TOPICS.COUNTER_ENDED, resultDto);
-    }
-  }
-
-  initialize(sessionId: number): void {
-    const sessionData = this.sessionDataMap.get(sessionId);
-    if (!sessionData) {
-      this.startSession(sessionId);
-      this.socketService.broadcastToSession(
-        sessionId,
-        TOPICS.INITIALIZE,
-        sessionId,
-      );
-      return;
-    }
-    sessionData.started = false;
-    sessionData.ended = false;
-    clearTimeout(sessionData.counterThread);
-    for (const participantStatus of sessionData.participantStatusMap.values()) {
-      participantStatus.counterStopAt = null;
-    }
+    const resultDto = new CounterEndedDto(sessionData.id, results);
 
     this.socketService.broadcastToSession(
-      sessionId,
-      TOPICS.INITIALIZE,
-      sessionId,
+      sessionData.id,
+      StationTopics.ROUND_ENDED,
+      resultDto,
     );
+  }
+
+  stopIndividualCounter(
+    sessionId: number,
+    uid: number,
+    stopSeconds: number,
+  ): void {
+    this.logger.debug(`Individual counter stopped: ${uid} ${stopSeconds}`);
+    const sessionData = this.sessionDataMap.get(sessionId);
+    if (!sessionData) return;
+    const participantStatus = sessionData.participantStatusMap.get(uid);
+    if (!participantStatus) return;
+    if (participantStatus.counterStopAt != null) return;
+    if (stopSeconds == null) return;
+    participantStatus.counterStopAt = stopSeconds;
+
+    const undoneParticipants = Array.from(
+      sessionData.participantStatusMap.values(),
+    ).filter((status) => status.counterStopAt == null);
+    if (undoneParticipants.length === 0) {
+      // all participants have stopped
+      clearTimeout(sessionData.counterThread);
+      this._handleRoundEnd(sessionId);
+      this.logger.debug(`Session ${sessionId} automatically ended`);
+    }
+
+    this.refreshUpdateTime(sessionId);
   }
 }

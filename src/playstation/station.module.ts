@@ -4,6 +4,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TenSecondsService } from './ten-seconds.service';
 import { StationRouterService } from './station-router.service';
 import { UserModule } from '@/user/user.module';
+import { MafiaService } from './mafia.service';
 
 @Module({
   imports: [
@@ -11,7 +12,7 @@ import { UserModule } from '@/user/user.module';
     forwardRef(() => SessionModule),
     UserModule,
   ],
-  providers: [TenSecondsService, StationRouterService],
+  providers: [StationRouterService, TenSecondsService, MafiaService],
   exports: [StationRouterService],
 })
 export class StationModule {}

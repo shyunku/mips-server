@@ -93,7 +93,7 @@ export class SocketGateway
       );
       if (gameService == null) return;
       const isCreator = session.creator.uid === uid;
-      gameService.routeMessage(sessionId, uid, isCreator, topic, payload);
+      gameService._routeMessage(sessionId, uid, isCreator, topic, payload);
     } catch (e) {
       this.logger.error(e);
     }
