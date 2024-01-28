@@ -301,7 +301,7 @@ export class SessionService {
         session.participants.length > session.game.maxMembers
       ) {
         throw new HttpException(
-          `session has invalid number of participants`,
+          `session participants count is not valid`,
           HttpStatus.BAD_REQUEST,
         );
       }
@@ -313,7 +313,7 @@ export class SessionService {
 
       const service = this.stationRouterService.getService(session.game.gid);
       if (service == null) throw new Error('no service for game');
-      await service.startSession(sessionId);
+      await service._handleSessionStart(sessionId);
 
       try {
         this.socketService.broadcastToSession(
@@ -374,7 +374,7 @@ export class SessionService {
 
       const service = this.stationRouterService.getService(session.game.gid);
       if (service == null) throw new Error('no service for game');
-      await service.endSession(sessionId);
+      await service._handleSessionEnd(sessionId);
 
       try {
         this.socketService.broadcastToSession(

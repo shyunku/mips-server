@@ -62,8 +62,8 @@ export class TenSecondsService extends PlayStationService<
   SessionData,
   MemberStatus
 > {
-  newStationMemberStatus(uid: number) {
-    return new MemberStatus(uid);
+  newStationMemberStatus(uid: number, nickname: string) {
+    return new MemberStatus(uid, nickname);
   }
   newSessionData(sessionId: number) {
     return new SessionData(sessionId);
@@ -85,6 +85,10 @@ export class TenSecondsService extends PlayStationService<
         break;
     }
   }
+
+  public async handleSessionStart(sessionData: SessionData): Promise<void> {}
+
+  public async handleSessionEnd(sessionData: SessionData): Promise<void> {}
 
   handleRoundStart(sessionData: SessionData, uid: number): void {
     const thread = setTimeout(() => {
@@ -141,6 +145,15 @@ export class TenSecondsService extends PlayStationService<
       resultDto,
     );
   }
+
+  async getCurrentSessionData(
+    sessionData: SessionData,
+    uid: number,
+  ): Promise<any | null> {
+    // TODO :: implement
+  }
+
+  /* ------------------------ custom ------------------------ */
 
   stopIndividualCounter(
     sessionId: number,

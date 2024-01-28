@@ -8,13 +8,16 @@ export const StationTopics = {
   ROUND_INITIALIZE: 'round/initialize',
   ROUND_START: 'round/start',
   ROUND_ENDED: 'round/ended',
+  ROUND_STATUS: 'round/status',
 };
 
 export abstract class StationMemberStatus {
   public uid: number;
+  public nickname: string | null = null;
 
-  constructor(uid: number) {
+  constructor(uid: number, nickname: string) {
     this.uid = uid;
+    this.nickname = nickname;
     this.initialize();
   }
 
@@ -27,6 +30,7 @@ export abstract class StationData<T extends StationMemberStatus> {
   public started: boolean = false;
   public ended: boolean = false;
   public lastUpdatedAt: number = Date.now();
+  public creatorUid: number | null = null;
 
   constructor(id: number) {
     this.id = id;
@@ -59,7 +63,7 @@ export abstract class PlayStationService<
     protected userService: UserService,
   ) {}
 
-  public abstract newStationMemberStatus(uid: number): K;
+  public abstract newStationMemberStatus(uid: number, nickname: string): K;
   public abstract newSessionData(sessionId: number): T;
 
   // public abstract initialize(sessionData: T): void;
@@ -104,10 +108,55 @@ export abstract class PlayStationService<
       case StationTopics.ROUND_ENDED:
         this._handleRoundEnd(sessionId);
         break;
+      case StationTopics.ROUND_STATUS:
+        this.handleRoundStatus(sessionId, senderUid);
+        break;
       default:
         this.routeMessage(sessionId, senderUid, isCreator, topic, payload);
         break;
     }
+  }
+
+  // define session start handler
+  public abstract handleSessionStart(sessionData: T): void;
+  public async _handleSessionStart(sessionId: number): Promise<void> {
+    this.logger.debug(`Session ${sessionId} started`);
+    // create session initial data
+    const session = await this.sessionService.getSession(sessionId);
+    if (!session) return;
+
+    const sessionData = this.newSessionData(sessionId);
+    sessionData.participantStatusMap.clear();
+    for (const participant of session.participants) {
+      const user = await this.userService.getUser(participant.uid);
+      if (!user) {
+        this.logger.debug(`User ${participant.uid} not found`);
+        continue;
+      }
+      const status = this.newStationMemberStatus(
+        participant.uid,
+        user.nickname,
+      );
+      status.initialize();
+      sessionData.participantStatusMap.set(participant.uid, status);
+    }
+    sessionData.creatorUid = session.creator.uid;
+    this.sessionDataMap.set(sessionId, sessionData);
+    this.logger.debug(`Session ${sessionId} started`);
+
+    this.handleSessionStart(sessionData);
+  }
+
+  // define session end handler
+  public abstract handleSessionEnd(sessionData: T): void;
+  public _handleSessionEnd(sessionId: number): void {
+    const sessionData = this.sessionDataMap.get(sessionId);
+    if (!sessionData) return;
+
+    this.handleSessionEnd(sessionData);
+
+    this.sessionDataMap.delete(sessionId);
+    this.logger.debug(`Session ${sessionId} ended`);
   }
 
   public abstract handleRoundStart(sessionData: T, uid: number): void;
@@ -150,33 +199,40 @@ export abstract class PlayStationService<
       return;
     }
     sessionData.ended = true;
+    this.socketService.broadcastToSession(
+      sessionId,
+      StationTopics.ROUND_ENDED,
+      sessionId,
+    );
 
     this.handleRoundEnd(sessionData);
 
     this.refreshUpdateTime(sessionData.id);
   }
 
-  public async startSession(sessionId: number): Promise<void> {
-    this.logger.debug(`Session ${sessionId} started`);
-    // create session initial data
-    const session = await this.sessionService.getSession(sessionId);
-    if (!session) return;
+  public async handleRoundStatus(
+    sessionId: number,
+    uid: number,
+  ): Promise<void> {
+    const sessionData = this.sessionDataMap.get(sessionId);
+    if (!sessionData) return;
 
-    const sessionData = this.newSessionData(sessionId);
-    sessionData.participantStatusMap.clear();
-    for (const participant of session.participants) {
-      const status = this.newStationMemberStatus(participant.uid);
-      status.initialize();
-      sessionData.participantStatusMap.set(participant.uid, status);
-    }
-    this.sessionDataMap.set(sessionId, sessionData);
-    this.logger.debug(`Session ${sessionId} started`);
+    // check if user is participant
+    if (!sessionData.participantStatusMap.has(uid)) return;
+
+    const currentData = await this.getCurrentSessionData(sessionData, uid);
+    this.socketService.unicastToSession(
+      uid,
+      sessionId,
+      StationTopics.ROUND_STATUS,
+      currentData,
+    );
   }
 
-  public endSession(sessionId: number): void {
-    this.sessionDataMap.delete(sessionId);
-    this.logger.debug(`Session ${sessionId} ended`);
-  }
+  public abstract getCurrentSessionData(
+    sessionData: T,
+    uid: number,
+  ): any | null;
 
   public canDestroy(sessionId: number): boolean {
     if (this.sessionDataMap.has(sessionId)) {
@@ -196,5 +252,11 @@ export abstract class PlayStationService<
 
   protected getSessionData(sessionId: number): T | null {
     return this.sessionDataMap.get(sessionId) ?? null;
+  }
+
+  protected isCreator(sessionId: number, uid: number): boolean {
+    const sessionData = this.sessionDataMap.get(sessionId);
+    if (!sessionData) return false;
+    return sessionData.creatorUid === uid;
   }
 }

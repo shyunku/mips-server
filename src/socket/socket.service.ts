@@ -136,4 +136,23 @@ export class SocketService {
       .except(this.getUser(uid).id)
       .emit(topic, payload);
   }
+
+  public unicastToSession(
+    uid: number,
+    sessionId: number,
+    topic: string,
+    payload: any = null,
+  ) {
+    let ignored = false;
+    const targetSocket = this.getUser(uid);
+    if (!targetSocket) {
+      ignored = true;
+    }
+    this.logger.debug(
+      `Unicasting --> session ${sessionId} -- ${uid} -- ${topic} (${ignored ? 'ignored' : 'sent'})`,
+    );
+    if (!ignored) {
+      this.io.to(this.getUser(uid).id).emit(topic, payload);
+    }
+  }
 }
