@@ -291,13 +291,11 @@ export class MafiaService extends PlayStationService<
     if (sessionData.jobSet) return;
     if (sessionData.stage !== Stage.NEED_JOB_SETTING) return;
 
-    if (sessionData.participantStatusMap.size < 4) return;
-
     // set job to members
-    const mafiaCount = Math.max(
-      Math.floor(sessionData.participantStatusMap.size / 4),
-      1,
-    );
+    const memberCount = sessionData.participantStatusMap.size;
+    if (memberCount < 4) return;
+
+    const mafiaCount = memberCount >= 6 ? 2 : 1;
     const unallocatedMemberMap = {};
     for (const memberStatus of sessionData.participantStatusMap.values()) {
       unallocatedMemberMap[memberStatus.uid] = null;
@@ -308,7 +306,7 @@ export class MafiaService extends PlayStationService<
       memberStatus.job = Jobs.CITIZEN;
     }
 
-    const jobQueue = [Jobs.POLICE, Jobs.DOCTOR];
+    const jobQueue = [Jobs.POLICE]; // TODO :: add doctor later
     for (let i = 0; i < mafiaCount; i++) {
       jobQueue.push(Jobs.MAFIA);
     }
