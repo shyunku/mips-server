@@ -1,12 +1,14 @@
 import { User } from '@/user/user.entity';
 import { generateNumCode } from '@/utils/common.util';
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { LessThan, Repository } from 'typeorm';
 
 @Injectable()
 export class UserService implements OnModuleInit {
+  private logger: Logger = new Logger('UserService');
+
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
   ) {}
@@ -26,7 +28,7 @@ export class UserService implements OnModuleInit {
       createdAt: LessThan(createdAtThreshold),
     });
 
-    console.log(`removed expired auto generated ${result.affected} users`);
+    this.logger.log(`removed expired auto generated ${result.affected} users`);
   }
 
   async getUser(uid: number): Promise<User> {

@@ -3,16 +3,23 @@ import { Game } from '@/game/game.entity';
 import { GameSession, SESSION_STATUS } from '@/session/session.entity';
 import { User } from '@/user/user.entity';
 import { generateNumCode } from '@/utils/common.util';
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Not, Repository } from 'typeorm';
+import { DataSource, IsNull, LessThan, Not, Repository } from 'typeorm';
 import { SocketService } from '@/socket/socket.service';
 import { SOCKET_TOPICS, JoinSessionResult } from '@/socket/socket.dto';
 import { SessionCreateDto } from './session.dto';
 import { StationRouterService } from '@/playstation/station-router.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 @Injectable()
-export class SessionService {
+export class SessionService implements OnModuleInit {
   private logger: Logger = new Logger('SessionService');
 
   constructor(
@@ -26,6 +33,29 @@ export class SessionService {
     private readonly dataSource: DataSource,
     private stationRouterService: StationRouterService,
   ) {}
+
+  async onModuleInit(): Promise<void> {
+    await this.endExpiredUnendSessions();
+  }
+
+  @Cron(CronExpression.EVERY_HOUR)
+  async endExpiredUnendSessions(): Promise<void> {
+    // update sessions that started before -24 hours
+    const startedAtThreshold = new Date();
+    startedAtThreshold.setHours(startedAtThreshold.getHours() - 24);
+
+    const result = await this.sessionRepository.update(
+      {
+        startedAt: LessThan(startedAtThreshold),
+        endedAt: IsNull(),
+      },
+      {
+        endedAt: new Date(),
+      },
+    );
+
+    this.logger.log(`updated un-ended ${result.affected} sessions`);
+  }
 
   // TODO :: delete expired sessions (24 hours later of created but not started)
 

@@ -70,7 +70,7 @@ export class TenSecondsService extends PlayStationService<
   }
 
   routeMessage(
-    sessionId: number,
+    sessionData: SessionData,
     uid: number,
     isCreator: boolean,
     topic: string,
@@ -78,7 +78,7 @@ export class TenSecondsService extends PlayStationService<
   ): void {
     switch (topic) {
       case TOPICS.STOP_COUNTER:
-        this.stopIndividualCounter(sessionId, uid, payload);
+        this.stopIndividualCounter(sessionData, uid, payload);
         break;
       default:
         this.logger.warn(`Unknown topic: ${topic}`);
@@ -146,6 +146,8 @@ export class TenSecondsService extends PlayStationService<
     );
   }
 
+  async initialize(sessionData: SessionData): Promise<void> {}
+
   async getCurrentSessionData(
     sessionData: SessionData,
     uid: number,
@@ -156,13 +158,11 @@ export class TenSecondsService extends PlayStationService<
   /* ------------------------ custom ------------------------ */
 
   stopIndividualCounter(
-    sessionId: number,
+    sessionData: SessionData,
     uid: number,
     stopSeconds: number,
   ): void {
     this.logger.debug(`Individual counter stopped: ${uid} ${stopSeconds}`);
-    const sessionData = this.sessionDataMap.get(sessionId);
-    if (!sessionData) return;
     const participantStatus = sessionData.participantStatusMap.get(uid);
     if (!participantStatus) return;
     if (participantStatus.counterStopAt != null) return;
@@ -175,10 +175,10 @@ export class TenSecondsService extends PlayStationService<
     if (undoneParticipants.length === 0) {
       // all participants have stopped
       clearTimeout(sessionData.counterThread);
-      this._handleRoundEnd(sessionId);
-      this.logger.debug(`Session ${sessionId} automatically ended`);
+      this._handleRoundEnd(sessionData.id);
+      this.logger.debug(`Session ${sessionData.id} automatically ended`);
     }
 
-    this.refreshUpdateTime(sessionId);
+    this.refreshUpdateTime(sessionData.id);
   }
 }

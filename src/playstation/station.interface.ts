@@ -66,8 +66,8 @@ export abstract class PlayStationService<
   public abstract newStationMemberStatus(uid: number, nickname: string): K;
   public abstract newSessionData(sessionId: number): T;
 
-  // public abstract initialize(sessionData: T): void;
-  protected async initialize(sessionId: number): Promise<void> {
+  public abstract initialize(sessionData: T): void;
+  protected async _initialize(sessionId: number): Promise<void> {
     const sessionData = this.sessionDataMap.get(sessionId);
     if (!sessionData) return;
 
@@ -77,6 +77,8 @@ export abstract class PlayStationService<
     sessionData._initialize();
     this.logger.debug(`Session ${sessionId} initialized`);
 
+    this.initialize(sessionData);
+
     this.socketService.broadcastToSession(
       sessionId,
       StationTopics.ROUND_INITIALIZE,
@@ -85,7 +87,7 @@ export abstract class PlayStationService<
   }
 
   public abstract routeMessage(
-    sessionId: number,
+    sessionData: T,
     senderUid: number,
     isCreator: boolean,
     topic: string,
@@ -98,9 +100,15 @@ export abstract class PlayStationService<
     topic: string,
     payload: any,
   ): void {
+    const sessionData = this.sessionDataMap.get(sessionId);
+    if (!sessionData) {
+      this.logger.warn(`Session ${sessionId} not found`);
+      return;
+    }
+
     switch (topic) {
       case StationTopics.ROUND_INITIALIZE:
-        this.initialize(sessionId);
+        this._initialize(sessionId);
         break;
       case StationTopics.ROUND_START:
         this._handleRoundStart(sessionId, senderUid);
@@ -112,7 +120,7 @@ export abstract class PlayStationService<
         this.handleRoundStatus(sessionId, senderUid);
         break;
       default:
-        this.routeMessage(sessionId, senderUid, isCreator, topic, payload);
+        this.routeMessage(sessionData, senderUid, isCreator, topic, payload);
         break;
     }
   }
