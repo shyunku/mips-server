@@ -57,8 +57,6 @@ export class SessionService implements OnModuleInit {
     this.logger.log(`updated un-ended ${result.affected} sessions`);
   }
 
-  // TODO :: delete expired sessions (24 hours later of created but not started)
-
   async getEndedSessionCount(): Promise<number> {
     return await this.sessionRepository.count({
       where: { status: SESSION_STATUS.ENDED },
@@ -338,12 +336,12 @@ export class SessionService implements OnModuleInit {
       session.status = SESSION_STATUS.PLAYING;
       session.startedAt = new Date();
 
-      await tx.manager.save(session);
-      await tx.commitTransaction();
-
       const service = this.stationRouterService.getService(session.game.gid);
       if (service == null) throw new Error('no service for game');
       await service._handleSessionStart(sessionId);
+
+      await tx.manager.save(session);
+      await tx.commitTransaction();
 
       try {
         this.socketService.broadcastToSession(
@@ -399,12 +397,12 @@ export class SessionService implements OnModuleInit {
       session.status = SESSION_STATUS.ENDED;
       session.endedAt = new Date();
 
-      await tx.manager.save(session);
-      await tx.commitTransaction();
-
       const service = this.stationRouterService.getService(session.game.gid);
       if (service == null) throw new Error('no service for game');
       await service._handleSessionEnd(sessionId);
+
+      await tx.manager.save(session);
+      await tx.commitTransaction();
 
       try {
         this.socketService.broadcastToSession(

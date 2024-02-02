@@ -33,9 +33,7 @@ export class SevenPokerNoChipService extends PlayStationService<
     return new SessionData(sessionId);
   }
 
-  public initialize(sessionData: SessionData): void {
-    throw new Error('Method not implemented.');
-  }
+  public initialize(sessionData: SessionData): void {}
   public routeMessage(
     sessionData: SessionData,
     senderUid: number,
@@ -49,19 +47,9 @@ export class SevenPokerNoChipService extends PlayStationService<
         break;
     }
   }
-  public handleSessionStart(sessionData: SessionData): void {
-    throw new Error('Method not implemented.');
-  }
-  public handleSessionEnd(sessionData: SessionData): void {
-    throw new Error('Method not implemented.');
-  }
-  public handleRoundStart(sessionData: SessionData, uid: number): void {
-    throw new Error('Method not implemented.');
-  }
-  public handleRoundEnd(sessionData: SessionData): void {
-    throw new Error('Method not implemented.');
-  }
-  public getCurrentSessionData(sessionData: SessionData, uid: number) {
-    throw new Error('Method not implemented.');
-  }
+  public handleSessionStart(sessionData: SessionData): void {}
+  public handleSessionEnd(sessionData: SessionData): void {}
+  public handleRoundStart(sessionData: SessionData, uid: number): void {}
+  public handleRoundEnd(sessionData: SessionData): void {}
+  public getCurrentSessionData(sessionData: SessionData, uid: number) {}
 }
