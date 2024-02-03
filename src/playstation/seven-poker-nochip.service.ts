@@ -9,14 +9,28 @@ const GameName = 'seven-poker-nochip';
 
 export const Topics = {};
 
-export const Stage = {};
+export const Stage = {
+  READY: 'ready',
+  BET: 'bet',
+};
 
 class MemberStatus extends StationMemberStatus {
-  public initialize(): void {}
+  public gold: string;
+  public bet: string;
+
+  public initialize(): void {
+    this.gold = '0';
+    this.bet = '0';
+  }
 }
 
 class SessionData extends StationData<MemberStatus> {
-  public initialize(): void {}
+  public pot: string;
+  public waitingFor: number;
+
+  public initialize(): void {
+    this.pot = '0';
+  }
 }
 
 @Injectable()
