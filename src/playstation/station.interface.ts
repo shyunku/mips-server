@@ -26,7 +26,7 @@ export abstract class StationMemberStatus {
 
 export abstract class StationData<T extends StationMemberStatus> {
   public id: number;
-  public participantStatusMap = new Map<number, T>();
+  public members = new Map<number, T>();
   public started: boolean = false;
   public ended: boolean = false;
   public lastUpdatedAt: number = Date.now();
@@ -40,7 +40,7 @@ export abstract class StationData<T extends StationMemberStatus> {
     this.started = false;
     this.ended = false;
     this.lastUpdatedAt = Date.now();
-    for (const status of this.participantStatusMap.values()) {
+    for (const status of this.members.values()) {
       status.initialize();
     }
     this.initialize();
@@ -134,7 +134,7 @@ export abstract class PlayStationService<
     if (!session) return;
 
     const sessionData = this.newSessionData(sessionId);
-    sessionData.participantStatusMap.clear();
+    sessionData.members.clear();
     for (const participant of session.participants) {
       const user = await this.userService.getUser(participant.uid);
       if (!user) {
@@ -146,11 +146,12 @@ export abstract class PlayStationService<
         user.nickname,
       );
       status.initialize();
-      sessionData.participantStatusMap.set(participant.uid, status);
+      sessionData.members.set(participant.uid, status);
     }
     sessionData.creatorUid = session.creator.uid;
     this.sessionDataMap.set(sessionId, sessionData);
     this.logger.debug(`Session ${sessionId} started`);
+    sessionData._initialize();
 
     this.handleSessionStart(sessionData);
   }
@@ -175,7 +176,7 @@ export abstract class PlayStationService<
       this.logger.debug(`Session ${sessionId} not found`);
       return;
     }
-    const participantStatus = sessionData.participantStatusMap.get(uid);
+    const participantStatus = sessionData.members.get(uid);
     if (!participantStatus) return;
 
     if (sessionData.started) {
@@ -226,7 +227,7 @@ export abstract class PlayStationService<
     if (!sessionData) return;
 
     // check if user is participant
-    if (!sessionData.participantStatusMap.has(uid)) return;
+    if (!sessionData.members.has(uid)) return;
 
     const currentData = await this.getCurrentSessionData(sessionData, uid);
     this.socketService.unicastToSession(

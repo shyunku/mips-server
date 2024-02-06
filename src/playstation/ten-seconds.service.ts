@@ -92,8 +92,8 @@ export class TenSecondsService extends PlayStationService<
 
   handleRoundStart(sessionData: SessionData, uid: number): void {
     const thread = setTimeout(() => {
-      const participantStatusMap = sessionData.participantStatusMap;
-      for (const participantStatus of participantStatusMap.values()) {
+      const members = sessionData.members;
+      for (const participantStatus of members.values()) {
         if (participantStatus.counterStopAt == null) {
           // participantStatus.counterStopAt = STOP_SECONDS_THRESHOLD;
         }
@@ -105,9 +105,7 @@ export class TenSecondsService extends PlayStationService<
 
   async handleRoundEnd(sessionData: SessionData): Promise<void> {
     // sort by counter stop time
-    const sortedParticipants = Array.from(
-      sessionData.participantStatusMap.values(),
-    )
+    const sortedParticipants = Array.from(sessionData.members.values())
       .filter(
         (e) =>
           e.counterStopAt !== null &&
@@ -118,7 +116,7 @@ export class TenSecondsService extends PlayStationService<
       });
 
     const results: CounterEndedResultDto[] = [];
-    for (const participantStatus of sessionData.participantStatusMap.values()) {
+    for (const participantStatus of sessionData.members.values()) {
       const user = await this.userService.getUser(participantStatus.uid);
 
       const result = new CounterEndedResultDto();
@@ -163,15 +161,15 @@ export class TenSecondsService extends PlayStationService<
     stopSeconds: number,
   ): void {
     this.logger.debug(`Individual counter stopped: ${uid} ${stopSeconds}`);
-    const participantStatus = sessionData.participantStatusMap.get(uid);
+    const participantStatus = sessionData.members.get(uid);
     if (!participantStatus) return;
     if (participantStatus.counterStopAt != null) return;
     if (stopSeconds == null) return;
     participantStatus.counterStopAt = stopSeconds;
 
-    const undoneParticipants = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.counterStopAt == null);
+    const undoneParticipants = Array.from(sessionData.members.values()).filter(
+      (status) => status.counterStopAt == null,
+    );
     if (undoneParticipants.length === 0) {
       // all participants have stopped
       clearTimeout(sessionData.counterThread);

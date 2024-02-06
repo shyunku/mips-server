@@ -25,7 +25,7 @@ const initialGames: Game[] = [
     name: '7포커 (No Chip)',
     description: '포커를 하고 싶은데 칩이 없으신가요?',
     minMembers: 2,
-    maxMembers: 7,
+    maxMembers: 5,
     deployed: true,
   }),
   new Game({

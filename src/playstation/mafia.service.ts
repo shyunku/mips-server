@@ -14,7 +14,7 @@ import { UserService } from '@/user/user.service';
 
 const GAME_NAME = 'mafia';
 
-export const TOPICS = {
+const TOPICS = {
   NEED_JOB_SETTING: `${GAME_NAME}/need-job-setting`, // -> 방장
   JOB_SETTING: `${GAME_NAME}/job-setting`, // <- 방장
   JOB_CONFIRMING: `${GAME_NAME}/job-confirming`, // -> 모든 유저
@@ -237,16 +237,14 @@ export class MafiaService extends PlayStationService<
     sessionData.stage = Stage.END;
 
     this.socketService.broadcastToSession(sessionData.id, TOPICS.GAME_RESULT, {
-      jobs: Array.from(sessionData.participantStatusMap.values()).map(
-        (status) => {
-          return {
-            uid: status.uid,
-            nickname: status.nickname,
-            job: status.job,
-            alive: status.alive,
-          };
-        },
-      ),
+      jobs: Array.from(sessionData.members.values()).map((status) => {
+        return {
+          uid: status.uid,
+          nickname: status.nickname,
+          job: status.job,
+          alive: status.alive,
+        };
+      }),
     });
   }
 
@@ -264,8 +262,7 @@ export class MafiaService extends PlayStationService<
     sessionData: SessionData,
     uid: number,
   ): Promise<any | null> {
-    const amIMafia =
-      sessionData.participantStatusMap.get(uid)?.job === Jobs.MAFIA;
+    const amIMafia = sessionData.members.get(uid)?.job === Jobs.MAFIA;
     return {
       jobSet: sessionData.jobSet,
       stage: sessionData.stage,
@@ -275,42 +272,36 @@ export class MafiaService extends PlayStationService<
       voteConfirmCount: sessionData.voteConfirmCount,
       mafiaKillVoteCount: sessionData.mafiaKillVoteCount,
       nextToBeVoteKilled: sessionData.nextToBeVoteKilled,
-      participants: Array.from(sessionData.participantStatusMap.values()).map(
-        (status) => {
-          const isMe = status.uid == uid;
-          return {
-            uid: status.uid,
-            nickname: status.nickname,
-            alive: status.alive,
-            vote: isMe ? status.vote : null,
-            agreeExecution: status.agreeExecution,
-            job:
-              (amIMafia && status.job === Jobs.MAFIA) || isMe
-                ? status.job
-                : null,
-            victimForMafia:
-              status.job === Jobs.MAFIA ? status.victimForMafia : null,
-            memo: isMe ? status.memo : null,
-          };
-        },
-      ),
-      aliveMafiaCount: Array.from(
-        sessionData.participantStatusMap.values(),
-      ).filter((status) => status.alive && status.job === Jobs.MAFIA).length,
+      participants: Array.from(sessionData.members.values()).map((status) => {
+        const isMe = status.uid == uid;
+        return {
+          uid: status.uid,
+          nickname: status.nickname,
+          alive: status.alive,
+          vote: isMe ? status.vote : null,
+          agreeExecution: status.agreeExecution,
+          job:
+            (amIMafia && status.job === Jobs.MAFIA) || isMe ? status.job : null,
+          victimForMafia:
+            status.job === Jobs.MAFIA ? status.victimForMafia : null,
+          memo: isMe ? status.memo : null,
+        };
+      }),
+      aliveMafiaCount: Array.from(sessionData.members.values()).filter(
+        (status) => status.alive && status.job === Jobs.MAFIA,
+      ).length,
       dayCount: sessionData.dayCount,
       mafiaWin: sessionData.mafiaWin,
       logs: sessionData.eventLog,
       gameResult: {
-        jobs: Array.from(sessionData.participantStatusMap.values()).map(
-          (status) => {
-            return {
-              uid: status.uid,
-              nickname: status.nickname,
-              job: status.job,
-              alive: status.alive,
-            };
-          },
-        ),
+        jobs: Array.from(sessionData.members.values()).map((status) => {
+          return {
+            uid: status.uid,
+            nickname: status.nickname,
+            job: status.job,
+            alive: status.alive,
+          };
+        }),
       },
     };
   }
@@ -327,7 +318,7 @@ export class MafiaService extends PlayStationService<
     if (sessionData.stage !== Stage.NEED_JOB_SETTING) return;
 
     // set job to members
-    const memberCount = sessionData.participantStatusMap.size;
+    const memberCount = sessionData.members.size;
     if (memberCount < 4) return;
 
     let mafiaCount = 0;
@@ -346,7 +337,7 @@ export class MafiaService extends PlayStationService<
     if (mafiaCount >= 9) doctorCount = 1;
 
     // set all members to citizen
-    for (const memberStatus of sessionData.participantStatusMap.values()) {
+    for (const memberStatus of sessionData.members.values()) {
       memberStatus.job = Jobs.CITIZEN;
     }
 
@@ -362,7 +353,7 @@ export class MafiaService extends PlayStationService<
     }
 
     const unallocatedMemberMap = {};
-    for (const memberStatus of sessionData.participantStatusMap.values()) {
+    for (const memberStatus of sessionData.members.values()) {
       unallocatedMemberMap[memberStatus.uid] = null;
     }
     while (jobQueue.length > 0) {
@@ -372,14 +363,14 @@ export class MafiaService extends PlayStationService<
         (a, b) => Math.random() - 0.5,
       );
       const randomUid = parseInt(shuffledUids[0]);
-      sessionData.participantStatusMap.get(randomUid).job = randomJob;
+      sessionData.members.get(randomUid).job = randomJob;
       delete unallocatedMemberMap[randomUid];
     }
 
     sessionData.jobSet = true;
     sessionData.stage = Stage.JOB_CONFIRMING;
 
-    for (const memberStatus of sessionData.participantStatusMap.values()) {
+    for (const memberStatus of sessionData.members.values()) {
       this.socketService.unicastToSession(
         memberStatus.uid,
         sessionData.id,
@@ -425,13 +416,13 @@ export class MafiaService extends PlayStationService<
     sessionData.stage = Stage.VOTE_FOR_EXECUTION;
 
     // set all participants vote as null
-    for (const status of sessionData.participantStatusMap.values()) {
+    for (const status of sessionData.members.values()) {
       status.vote = null;
     }
 
-    const aliveParticipants = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive);
+    const aliveParticipants = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive,
+    );
 
     this.socketService.broadcastToSession(
       sessionData.id,
@@ -448,14 +439,14 @@ export class MafiaService extends PlayStationService<
   handleVote(sessionData: SessionData, uid: number, payload: any): void {
     if (sessionData.stage !== Stage.VOTE_FOR_EXECUTION) return;
 
-    const voter = sessionData.participantStatusMap.get(uid);
+    const voter = sessionData.members.get(uid);
     if (!voter) return;
     if (!voter.alive) return; // 죽은 사람은 투표할 수 없음
     if (voter.vote !== null) return; // 이미 투표함
 
     // payload = targetUid
     // check if target is alive or valid
-    const target = sessionData.participantStatusMap.get(payload);
+    const target = sessionData.members.get(payload);
     if (!target) return;
 
     voter.vote = target.uid;
@@ -466,7 +457,7 @@ export class MafiaService extends PlayStationService<
   handleVoteConfirm(sessionData: SessionData, uid: number, payload: any): void {
     if (sessionData.stage !== Stage.EXECUTION_CONFIGM) return;
     if (sessionData.nextToBeVoteKilled === null) return;
-    const participant = sessionData.participantStatusMap.get(uid);
+    const participant = sessionData.members.get(uid);
     if (!participant) return;
     participant.agreeExecution = payload === true;
 
@@ -499,17 +490,17 @@ export class MafiaService extends PlayStationService<
       TOPICS.MAFIA_KILL_START,
     );
 
-    const alivers = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive && status.job !== Jobs.MAFIA);
+    const alivers = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive && status.job !== Jobs.MAFIA,
+    );
 
-    const aliveMafias = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive && status.job === Jobs.MAFIA);
+    const aliveMafias = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive && status.job === Jobs.MAFIA,
+    );
 
-    for (const mafia of Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.job === Jobs.MAFIA)) {
+    for (const mafia of Array.from(sessionData.members.values()).filter(
+      (status) => status.job === Jobs.MAFIA,
+    )) {
       this.socketService.unicastToSession(
         mafia.uid,
         sessionData.id,
@@ -523,23 +514,21 @@ export class MafiaService extends PlayStationService<
 
   handleMafiaKill(sessionData: SessionData, uid: number, payload: any): void {
     if (sessionData.stage !== Stage.MAFIA_KILL) return;
-    const mafia = sessionData.participantStatusMap.get(uid);
+    const mafia = sessionData.members.get(uid);
     if (!mafia) return;
     if (mafia.job !== Jobs.MAFIA) return;
 
-    const target = sessionData.participantStatusMap.get(payload);
+    const target = sessionData.members.get(payload);
     if (!target) return;
     if (!target.alive) return;
 
-    const source = sessionData.participantStatusMap.get(uid);
+    const source = sessionData.members.get(uid);
     if (!source) return;
     if (source.job !== Jobs.MAFIA) return;
 
     mafia.victimForMafia = target.uid;
 
-    const mafiaKillVoteCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter(
+    const mafiaKillVoteCount = Array.from(sessionData.members.values()).filter(
       (status) =>
         status.alive &&
         status.job === Jobs.MAFIA &&
@@ -548,7 +537,7 @@ export class MafiaService extends PlayStationService<
 
     sessionData.mafiaKillVoteCount = mafiaKillVoteCount;
 
-    const mafias = Array.from(sessionData.participantStatusMap.values()).filter(
+    const mafias = Array.from(sessionData.members.values()).filter(
       (status) => status.job === Jobs.MAFIA && status.alive,
     );
 
@@ -577,7 +566,7 @@ export class MafiaService extends PlayStationService<
     payload: any,
   ): void {
     if (sessionData.stage !== Stage.POLICE_INVESTIGATE) return;
-    const police = sessionData.participantStatusMap.get(uid);
+    const police = sessionData.members.get(uid);
     if (!police) {
       this.logger.warn(`Police ${uid} not found`);
       return;
@@ -587,7 +576,7 @@ export class MafiaService extends PlayStationService<
       return;
     }
 
-    const target = sessionData.participantStatusMap.get(payload);
+    const target = sessionData.members.get(payload);
     if (!target) {
       this.logger.warn(`Target ${payload} not found`);
       return;
@@ -604,7 +593,7 @@ export class MafiaService extends PlayStationService<
       },
     );
 
-    const doctor = Array.from(sessionData.participantStatusMap.values()).find(
+    const doctor = Array.from(sessionData.members.values()).find(
       (status) => status.job === Jobs.DOCTOR && status.alive,
     );
 
@@ -618,7 +607,7 @@ export class MafiaService extends PlayStationService<
         doctor.uid,
         sessionData.id,
         TOPICS.DOCTOR_HEAL,
-        Array.from(sessionData.participantStatusMap.values())
+        Array.from(sessionData.members.values())
           .filter((status) => status.alive && status.uid !== doctor.uid)
           .map((status) => {
             return {
@@ -633,11 +622,11 @@ export class MafiaService extends PlayStationService<
   }
 
   handleDoctorHeal(sessionData: SessionData, uid: number, payload: any): void {
-    const doctor = sessionData.participantStatusMap.get(uid);
+    const doctor = sessionData.members.get(uid);
     if (!doctor) return;
     if (doctor.job !== Jobs.DOCTOR) return;
 
-    const target = sessionData.participantStatusMap.get(payload);
+    const target = sessionData.members.get(payload);
     if (!target) return;
 
     sessionData.nextToBeHealed = target.uid;
@@ -651,7 +640,7 @@ export class MafiaService extends PlayStationService<
   }
 
   handleMemo(sessionData: SessionData, uid: number, payload: any): void {
-    const participant = sessionData.participantStatusMap.get(uid);
+    const participant = sessionData.members.get(uid);
     if (!participant) return;
     participant.memo = payload;
 
@@ -682,9 +671,7 @@ export class MafiaService extends PlayStationService<
       revived,
     });
 
-    const target = sessionData.participantStatusMap.get(
-      sessionData.nextToBeKilled,
-    );
+    const target = sessionData.members.get(sessionData.nextToBeKilled);
 
     if (!revived) {
       if (!target) return;
@@ -699,9 +686,7 @@ export class MafiaService extends PlayStationService<
         targetNickname: target.nickname,
       });
     } else {
-      const target = sessionData.participantStatusMap.get(
-        sessionData.nextToBeKilled,
-      );
+      const target = sessionData.members.get(sessionData.nextToBeKilled);
       if (!target) return;
       this.socketService.broadcastToSession(sessionData.id, TOPICS.REVIVED, {
         targetUid: target.uid,
@@ -757,7 +742,7 @@ export class MafiaService extends PlayStationService<
     sessionData.voteConfirmCount = 0;
     sessionData.mafiaKillVoteCount = 0;
     sessionData.dayCount++;
-    for (const status of sessionData.participantStatusMap.values()) {
+    for (const status of sessionData.members.values()) {
       status.agreeExecution = null;
       status.vote = null;
       status.victimForMafia = null;
@@ -765,12 +750,12 @@ export class MafiaService extends PlayStationService<
   }
 
   checkForVoteComplete(sessionData: SessionData): void {
-    const aliveCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive).length;
-    const voteCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive && status.vote !== null).length;
+    const aliveCount = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive,
+    ).length;
+    const voteCount = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive && status.vote !== null,
+    ).length;
 
     sessionData.voteCount = voteCount;
 
@@ -782,7 +767,7 @@ export class MafiaService extends PlayStationService<
     if (voteCount >= aliveCount) {
       // vote complete
       const countMap = {};
-      for (const status of sessionData.participantStatusMap.values()) {
+      for (const status of sessionData.members.values()) {
         if (status.vote === null) continue;
         if (!countMap.hasOwnProperty(status.vote)) {
           countMap[status.vote] = 0;
@@ -822,8 +807,7 @@ export class MafiaService extends PlayStationService<
         Object.keys(countMap).map((uid) => {
           return {
             uid,
-            nickname: sessionData.participantStatusMap.get(parseInt(uid))
-              .nickname,
+            nickname: sessionData.members.get(parseInt(uid)).nickname,
             voteCount: countMap[uid],
           };
         }),
@@ -831,9 +815,7 @@ export class MafiaService extends PlayStationService<
 
       if (unique) {
         // decide for execution
-        const targetUser = sessionData.participantStatusMap.get(
-          parseInt(maxVoteUid),
-        );
+        const targetUser = sessionData.members.get(parseInt(maxVoteUid));
         sessionData.stage = Stage.EXECUTION_CONFIGM;
         sessionData.nextToBeVoteKilled = parseInt(maxVoteUid);
         this.socketService.broadcastToSession(
@@ -858,13 +840,13 @@ export class MafiaService extends PlayStationService<
 
   checkForVoteConfirmComplete(sessionData: SessionData): void {
     const aliveNonExecuteeCount = Array.from(
-      sessionData.participantStatusMap.values(),
+      sessionData.members.values(),
     ).filter(
       (status) => status.alive && status.uid != sessionData.nextToBeVoteKilled,
     ).length;
-    const voteConfirmCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive && status.agreeExecution !== null).length;
+    const voteConfirmCount = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive && status.agreeExecution !== null,
+    ).length;
 
     sessionData.voteConfirmCount = voteConfirmCount;
     this.socketService.broadcastToSession(sessionData.id, TOPICS.VOTE_CONFIRM, {
@@ -874,7 +856,7 @@ export class MafiaService extends PlayStationService<
     if (voteConfirmCount >= aliveNonExecuteeCount) {
       // check if execution is valid
       const executionAgreeCount = Array.from(
-        sessionData.participantStatusMap.values(),
+        sessionData.members.values(),
       ).filter(
         (status) => status.alive && status.agreeExecution === true,
       ).length;
@@ -886,9 +868,7 @@ export class MafiaService extends PlayStationService<
           return;
         }
         // execute
-        const target = sessionData.participantStatusMap.get(
-          sessionData.nextToBeVoteKilled,
-        );
+        const target = sessionData.members.get(sessionData.nextToBeVoteKilled);
         if (!target) return;
         target.alive = false;
 
@@ -917,12 +897,10 @@ export class MafiaService extends PlayStationService<
   }
 
   checkForMafiaKillVoteComplete(sessionData: SessionData): void {
-    const aliveMafiaCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.alive && status.job === Jobs.MAFIA).length;
-    const mafiaKillVoteCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter(
+    const aliveMafiaCount = Array.from(sessionData.members.values()).filter(
+      (status) => status.alive && status.job === Jobs.MAFIA,
+    ).length;
+    const mafiaKillVoteCount = Array.from(sessionData.members.values()).filter(
       (status) =>
         status.alive &&
         status.job === Jobs.MAFIA &&
@@ -936,7 +914,7 @@ export class MafiaService extends PlayStationService<
       );
 
       const countMap = {};
-      for (const status of sessionData.participantStatusMap.values()) {
+      for (const status of sessionData.members.values()) {
         if (!(status.alive && status.job === Jobs.MAFIA)) continue;
         if (status.victimForMafia === null) continue;
         if (!countMap.hasOwnProperty(status.victimForMafia)) {
@@ -973,12 +951,12 @@ export class MafiaService extends PlayStationService<
       if (unique) {
         sessionData.nextToBeKilled = parseInt(maxVoteUid);
 
-        const police = Array.from(
-          sessionData.participantStatusMap.values(),
-        ).find((status) => status.job === Jobs.POLICE && status.alive);
-        const doctor = Array.from(
-          sessionData.participantStatusMap.values(),
-        ).find((status) => status.job === Jobs.DOCTOR && status.alive);
+        const police = Array.from(sessionData.members.values()).find(
+          (status) => status.job === Jobs.POLICE && status.alive,
+        );
+        const doctor = Array.from(sessionData.members.values()).find(
+          (status) => status.job === Jobs.DOCTOR && status.alive,
+        );
         if (police != null) {
           sessionData.stage = Stage.POLICE_INVESTIGATE;
           this.socketService.broadcastToSession(
@@ -989,7 +967,7 @@ export class MafiaService extends PlayStationService<
             police.uid,
             sessionData.id,
             TOPICS.POLICE_INVESTIGATE,
-            Array.from(sessionData.participantStatusMap.values())
+            Array.from(sessionData.members.values())
               .filter((status) => status.alive && status.uid !== police.uid)
               .map((status) => {
                 return {
@@ -1008,7 +986,7 @@ export class MafiaService extends PlayStationService<
             doctor.uid,
             sessionData.id,
             TOPICS.DOCTOR_HEAL,
-            Array.from(sessionData.participantStatusMap.values())
+            Array.from(sessionData.members.values())
               .filter((status) => status.alive && status.uid !== doctor.uid)
               .map((status) => {
                 return {
@@ -1022,9 +1000,9 @@ export class MafiaService extends PlayStationService<
         }
       } else {
         // max vote count is not unique (mismatch)
-        const mafias = Array.from(
-          sessionData.participantStatusMap.values(),
-        ).filter((status) => status.job === Jobs.MAFIA && status.alive);
+        const mafias = Array.from(sessionData.members.values()).filter(
+          (status) => status.job === Jobs.MAFIA && status.alive,
+        );
 
         for (const m of mafias) {
           this.socketService.unicastToSession(
@@ -1038,19 +1016,19 @@ export class MafiaService extends PlayStationService<
   }
 
   checkForGameEnd(sessionData: SessionData): boolean {
-    const citizenCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.job !== Jobs.MAFIA && status.alive).length;
-    const mafiaCount = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.job === Jobs.MAFIA && status.alive).length;
+    const citizenCount = Array.from(sessionData.members.values()).filter(
+      (status) => status.job !== Jobs.MAFIA && status.alive,
+    ).length;
+    const mafiaCount = Array.from(sessionData.members.values()).filter(
+      (status) => status.job === Jobs.MAFIA && status.alive,
+    ).length;
 
-    const mafias = Array.from(sessionData.participantStatusMap.values()).filter(
+    const mafias = Array.from(sessionData.members.values()).filter(
       (status) => status.job === Jobs.MAFIA,
     );
-    const citizens = Array.from(
-      sessionData.participantStatusMap.values(),
-    ).filter((status) => status.job !== Jobs.MAFIA);
+    const citizens = Array.from(sessionData.members.values()).filter(
+      (status) => status.job !== Jobs.MAFIA,
+    );
 
     if (mafiaCount === 0) {
       // citizen win
