@@ -186,6 +186,7 @@ export abstract class PlayStationService<
     }
 
     sessionData.started = true;
+    sessionData.ended = false;
 
     this.handleRoundStart(sessionData, uid);
 
@@ -207,6 +208,7 @@ export abstract class PlayStationService<
       this.logger.debug(`Session ${sessionId} not found`);
       return;
     }
+    sessionData.started = false;
     sessionData.ended = true;
     this.socketService.broadcastToSession(
       sessionId,
