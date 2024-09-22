@@ -20,7 +20,7 @@ export class StationRouterService {
         return this.tenSecondsService;
       case 2:
         return this.mafiaService;
-      case 3:
+      case 4:
         return this.sevenPokerNoChipService;
       default:
         return null;
