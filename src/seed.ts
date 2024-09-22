@@ -21,7 +21,7 @@ const initialGames: Game[] = [
     deployed: true,
   }),
   new Game({
-    gid: 4,
+    gid: 3,
     name: '7포커 (No Chip)',
     description: '포커를 하고 싶은데 칩이 없으신가요?',
     minMembers: 2,
@@ -29,7 +29,7 @@ const initialGames: Game[] = [
     deployed: true,
   }),
   new Game({
-    gid: 5,
+    gid: 4,
     name: '7포커',
     description: '국룰게임 세븐카드 스터드 포커',
     minMembers: 2,
@@ -37,7 +37,7 @@ const initialGames: Game[] = [
     deployed: false,
   }),
   new Game({
-    gid: 6,
+    gid: 5,
     name: '공범',
     description: '준비 중',
     minMembers: 1,
@@ -45,7 +45,7 @@ const initialGames: Game[] = [
     deployed: false,
   }),
   new Game({
-    gid: 7,
+    gid: 6,
     name: '금지어 게임',
     description: '준비 중',
     minMembers: 1,
@@ -53,7 +53,7 @@ const initialGames: Game[] = [
     deployed: false,
   }),
   new Game({
-    gid: 8,
+    gid: 7,
     name: 'GPS 마피아',
     description: '준비 중',
     minMembers: 1,
