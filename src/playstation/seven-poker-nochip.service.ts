@@ -135,6 +135,13 @@ export class SevenPokerNoChipService extends PlayStationService<
     sessionData.stage = Stage.BET;
     sessionData.currentTurn = Array.from(sessionData.turnOrder)[0];
 
+    // initialize member status
+    sessionData.members.forEach((memberStatus) => {
+      memberStatus.bet = BigNumber(0);
+      memberStatus.betType = null;
+      memberStatus.died = false;
+    });
+
     let collected = BigNumber(0);
     for (const [uid, memberStatus] of sessionData.members) {
       const collecting = sessionData.startBetGold;
