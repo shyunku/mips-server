@@ -14,6 +14,12 @@ export class UserDto {
   }
 }
 
+export class UserSignupDto {
+  id: string;
+  encryptedPassword: string;
+  nickname?: string;
+}
+
 export class LoginResultDto {
   user: UserDto;
   token: string;

@@ -17,6 +17,7 @@ const Topics = {
   GIVE_MONEY_TO_ALL: `${GameName}/give-money-to-all`,
   GIVE_MONEY_TO: `${GameName}/give-money-to`,
   GAME_END: `${GameName}/game-end`,
+  NEW_BET_NOTIFY: `${GameName}/new-bet-notify`,
 };
 
 const Stage = {
@@ -162,6 +163,7 @@ export class SevenPokerNoChipService extends PlayStationService<
     sessionData.stage = Stage.READY;
     sessionData.pot = BigNumber(0);
     sessionData.currentBet = BigNumber(0);
+    sessionData.currentTurn = null;
   }
   public getCurrentSessionData(sessionData: SessionData, uid: number) {
     return {
@@ -277,6 +279,13 @@ export class SevenPokerNoChipService extends PlayStationService<
           memberStatus.betType = null;
         });
         sessionData.currentTurn = this.getFirstTurn(sessionData);
+
+        // notify current turn that it's new round
+        this.socketService.unicastToSession(
+          sessionData.currentTurn,
+          sessionData.id,
+          Topics.NEW_BET_NOTIFY,
+        );
       }
     } else {
       sessionData.currentTurn = nextTurnUid;
@@ -287,6 +296,12 @@ export class SevenPokerNoChipService extends PlayStationService<
       sessionData.id,
       Topics.STATE_CHANGE,
       this.getCurrentSessionData(sessionData, uid),
+    );
+    this.socketService.unicastToSession(
+      sessionData.creatorUid,
+      sessionData.id,
+      Topics.BET,
+      betType,
     );
   }
 
@@ -317,6 +332,11 @@ export class SevenPokerNoChipService extends PlayStationService<
   ) {
     if (!isCreator) {
       this.logger.warn(`User is not creator`);
+      return;
+    }
+
+    if (!sessionData.settingComplete) {
+      this.logger.warn(`Game not started yet`);
       return;
     }
 
@@ -351,7 +371,16 @@ export class SevenPokerNoChipService extends PlayStationService<
       return;
     }
 
+    if (!sessionData.settingComplete) {
+      this.logger.warn(`Game not started yet`);
+      return;
+    }
+
     const { uidList, amount } = payload;
+    if (!Array.isArray(uidList)) {
+      this.logger.warn(`Invalid uid list`);
+      return;
+    }
 
     // check uid validity
     let validUids = 0;

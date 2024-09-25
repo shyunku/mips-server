@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Logger,
+  NotFoundException,
   Post,
   Request,
   UseGuards,
@@ -10,7 +11,7 @@ import {
 import { AppService } from '../app/app.service';
 import { UserService } from '@/user/user.service';
 import { User } from '@/user/user.entity';
-import { LoginResultDto, UserDto } from '@/user/user.dto';
+import { LoginResultDto, UserDto, UserSignupDto } from '@/user/user.dto';
 import { AuthService } from '@/auth/auth.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -31,6 +32,34 @@ export class UserController {
     const result = await this.authService.login(user);
     // this.logger.debug(`created auto generated user: ${user.uid}`);
     return LoginResultDto.from(user, result.access_token);
+  }
+
+  @Post('/login')
+  async login(
+    @Body('id') id: string,
+    @Body('encryptedPassword') encryptedPassword: string,
+  ): Promise<LoginResultDto> {
+    const user = await this.userService.validateUser(id, encryptedPassword);
+    if (user == null) {
+      // return 404
+      throw new NotFoundException('User not found');
+    }
+
+    const result = await this.authService.login(user);
+    return LoginResultDto.from(user, result.access_token);
+  }
+
+  @Post('/signup')
+  async signup(@Body() userDto: UserSignupDto): Promise<LoginResultDto> {
+    const user = await this.userService.createUser(userDto);
+    const result = await this.authService.login(user);
+    return LoginResultDto.from(user, result.access_token);
+  }
+
+  @Post('/tokenTest')
+  @UseGuards(AuthGuard('jwt'))
+  async tokenTest(@Request() req): Promise<UserDto> {
+    return UserDto.from(req.user);
   }
 
   @Post('/signout')
